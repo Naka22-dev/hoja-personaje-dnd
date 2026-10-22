@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hoja de personaje</title>
+<meta name="description" content="Hoja de personaje D&D 2024 para el móvil">
+<meta name="theme-color" content="#7a1c1c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="iconos/icono.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="iconos/icono-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Hoja PJ">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+
+<!-- ============ LISTA DE PERSONAJES ============ -->
+<section id="vista-lista" class="vista">
+  <header class="barra">
+    <h1>Mis personajes</h1>
+  </header>
+  <main class="contenido">
+    <div id="personajes"></div>
+    <div class="botonera">
+      <button class="primario" data-accion="nuevo">＋ Nuevo personaje</button>
+      <button data-accion="importar">Importar archivo</button>
+      <button data-accion="exportarTodos">Copia de seguridad</button>
+    </div>
+    <input type="file" id="archivo-importar" accept=".json,application/json" hidden>
+    <p class="pie">Las hojas se guardan solo en este dispositivo. Haz una copia de seguridad de vez en cuando. · v<span id="version"></span></p>
+  </main>
+</section>
+
+<!-- ============ HOJA DE PERSONAJE ============ -->
+<section id="vista-hoja" class="vista" hidden>
+  <header class="barra">
+    <button class="icono" data-accion="volver" aria-label="Volver a la lista">‹</button>
+    <div class="titulo">
+      <h1 data-calc="titulo"></h1>
+      <p data-calc="subtitulo"></p>
+    </div>
+    <button class="icono" data-accion="exportar" aria-label="Exportar este personaje" title="Exportar">⇩</button>
+  </header>
+
+  <main class="contenido" id="hoja">
+
+    <!-- ===== FICHA ===== -->
+    <div class="panel" data-panel="ficha" hidden>
+      <div class="caja">
+        <label class="campo ancho">Nombre del personaje <input data-campo="nombre" autocomplete="off"></label>
+        <div class="fila2">
+          <label class="campo">Clase <input data-campo="clase" autocomplete="off"></label>
+          <label class="campo">Subclase <input data-campo="subclase" autocomplete="off"></label>
+          <label class="campo">Especie <input data-campo="especie" autocomplete="off"></label>
+          <label class="campo">Trasfondo <input data-campo="trasfondo" autocomplete="off"></label>
+          <label class="campo">Nivel <input data-campo="nivel" data-tipo="num" type="number" inputmode="numeric" min="1" max="20"></label>
+          <label class="campo">PX <input data-campo="px" inputmode="numeric" autocomplete="off"></label>
+        </div>
+      </div>
+      <div class="caja">
+        <h2>Aspecto</h2>
+        <textarea data-campo="aspecto" rows="3"></textarea>
+      </div>
+      <div class="caja">
+        <h2>Historia y personalidad</h2>
+        <textarea data-campo="historia" rows="5"></textarea>
+        <label class="campo ancho">Alineamiento <input data-campo="alineamiento" autocomplete="off"></label>
+      </div>
+      <div class="caja">
+        <h2>Idiomas</h2>
+        <textarea data-campo="idiomas" rows="2"></textarea>
+      </div>
+      <button class="peligro ancho" data-accion="borrarActual">Borrar este personaje</button>
+    </div>
+
+    <!-- ===== COMBATE ===== -->
+    <div class="panel" data-panel="combate" hidden>
+      <div class="caja pg">
+        <div class="pg-cabecera">
+          <h2>Puntos de golpe</h2>
+          <button class="chip" data-accion="inspiracion" data-estado="inspiracion">Inspiración heroica</button>
+        </div>
+        <div class="pg-numeros">
+          <label class="pg-actual">Actuales <input data-campo="pg.act" data-tipo="num" type="number" inputmode="numeric"></label>
+          <span class="barra-sep">/</span>
+          <label class="pg-max">Máx. <input data-campo="pg.max" data-tipo="num" type="number" inputmode="numeric"></label>
+          <label class="pg-temp">Temp. <input data-campo="pg.temp" data-tipo="num" type="number" inputmode="numeric"></label>
+        </div>
+        <div class="pg-barra"><span data-estado="pgBarra"></span></div>
+        <div class="pg-acciones">
+          <button class="peligro" data-accion="dano">− Daño</button>
+          <input id="cantidad" type="number" inputmode="numeric" min="0" placeholder="0" aria-label="Cantidad">
+          <button class="exito" data-accion="curar">+ Curar</button>
+        </div>
+      </div>
+
+      <div class="cuadricula">
+        <div class="dato">
+          <span class="etq">Clase de armadura</span>
+          <input class="grande" data-campo="ca" inputmode="numeric" autocomplete="off">
+          <label class="mini"><input type="checkbox" data-campo="escudo"> Escudo</label>
+        </div>
+        <div class="dato">
+          <span class="etq">Iniciativa</span>
+          <span class="grande" data-calc="iniciativa"></span>
+          <label class="mini">extra <input class="diminuto" data-campo="iniciativaExtra" data-tipo="num" type="number" inputmode="numeric"></label>
+        </div>
+        <div class="dato">
+          <span class="etq">Velocidad</span>
+          <input class="grande" data-campo="velocidad" autocomplete="off">
+        </div>
+        <div class="dato">
+          <span class="etq">Tamaño</span>
+          <input class="medio" data-campo="tamano" autocomplete="off">
+        </div>
+        <div class="dato">
+          <span class="etq">Percepción pasiva</span>
+          <span class="grande" data-calc="pasiva"></span>
+        </div>
+        <div class="dato">
+          <span class="etq">Bonif. por competencia</span>
+          <span class="grande" data-calc="competencia"></span>
+        </div>
+      </div>
+
+      <div class="caja">
+        <h2>Dados de golpe</h2>
+        <div class="fila-dg">
+          <label class="campo">Dado <input data-campo="dg.dado" class="corto" autocomplete="off"></label>
+          <div class="contador">
+            <span class="etq">Gastados</span>
+            <button class="icono" data-accion="dg" data-d="-1" aria-label="Quitar">−</button>
+            <b data-calc="dgGastados"></b><span>/ <span data-calc="dgTotal"></span></span>
+            <button class="icono" data-accion="dg" data-d="1" aria-label="Añadir">+</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="caja">
+        <h2>Salvaciones contra muerte</h2>
+        <div class="muerte">
+          <span>Éxitos</span>
+          <span class="rombos" data-muerte="exitos"></span>
+          <span>Fallos</span>
+          <span class="rombos fallos" data-muerte="fallos"></span>
+        </div>
+      </div>
+
+      <div class="botonera dos">
+        <button data-accion="corto">Descanso corto</button>
+        <button data-accion="largo">Descanso largo</button>
+      </div>
+
+      <div class="caja">
+        <h2>Armas y trucos de daño</h2>
+        <div id="lista-armas" class="lista"></div>
+        <button class="ancho" data-accion="nuevaArma">＋ Añadir arma o truco</button>
+      </div>
+    </div>
+
+    <!-- ===== CARACTERÍSTICAS ===== -->
+    <div class="panel" data-panel="atributos" hidden>
+      <p class="ayuda">Toca el círculo para marcar competencia (●) o pericia (◉).</p>
+      <div id="lista-caracteristicas"></div>
+    </div>
+
+    <!-- ===== RASGOS ===== -->
+    <div class="panel" data-panel="rasgos" hidden>
+      <div class="caja">
+        <h2>Rasgos de clase</h2>
+        <textarea data-campo="rasgosClase" rows="8"></textarea>
+      </div>
+      <div class="caja">
+        <h2>Atributos de especie</h2>
+        <textarea data-campo="atributosEspecie" rows="5"></textarea>
+      </div>
+      <div class="caja">
+        <h2>Dotes</h2>
+        <textarea data-campo="dotes" rows="5"></textarea>
+      </div>
+      <div class="caja">
+        <h2>Entrenamiento y competencias con equipo</h2>
+        <div class="etq">Entrenamiento con armadura</div>
+        <div class="casillas">
+          <label><input type="checkbox" data-campo="armaduras.ligera"> Ligeras</label>
+          <label><input type="checkbox" data-campo="armaduras.media"> Medias</label>
+          <label><input type="checkbox" data-campo="armaduras.pesada"> Pesadas</label>
+          <label><input type="checkbox" data-campo="armaduras.escudo"> Escudos</label>
+        </div>
+        <label class="campo ancho">Armas <textarea data-campo="compArmas" rows="2"></textarea></label>
+        <label class="campo ancho">Herramientas <textarea data-campo="compHerramientas" rows="2"></textarea></label>
+      </div>
+    </div>
+
+    <!-- ===== MAGIA ===== -->
+    <div class="panel" data-panel="magia" hidden>
+      <div class="caja">
+        <label class="campo ancho">Aptitud mágica
+          <select data-campo="magia.aptitud">
+            <option value="">— Ninguna —</option>
+            <option value="int">Inteligencia</option>
+            <option value="sab">Sabiduría</option>
+            <option value="car">Carisma</option>
+          </select>
+        </label>
+        <div class="cuadricula tres">
+          <div class="dato"><span class="etq">Modificador</span><span class="grande" data-calc="modMagia"></span></div>
+          <div class="dato"><span class="etq">CD de salvación</span><span class="grande" data-calc="cdMagia"></span></div>
+          <div class="dato"><span class="etq">Bonif. de ataque</span><span class="grande" data-calc="ataqueMagia"></span></div>
+        </div>
+      </div>
+      <div class="caja">
+        <h2>Espacios de conjuro</h2>
+        <p class="ayuda">Ajusta el total con − / + y toca los rombos para marcar los gastados.</p>
+        <div id="lista-espacios"></div>
+      </div>
+      <div class="caja">
+        <h2>Trucos y conjuros preparados</h2>
+        <div id="lista-conjuros" class="lista"></div>
+        <div class="botonera dos">
+          <button data-accion="nuevoConjuro">＋ Añadir conjuro</button>
+          <button data-accion="ordenarConjuros">Ordenar por nivel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== EQUIPO ===== -->
+    <div class="panel" data-panel="equipo" hidden>
+      <div class="caja">
+        <h2>Monedas</h2>
+        <div class="monedas">
+          <label>PC <input data-campo="monedas.pc" data-tipo="num" type="number" inputmode="numeric"></label>
+          <label>PP <input data-campo="monedas.pp" data-tipo="num" type="number" inputmode="numeric"></label>
+          <label>PE <input data-campo="monedas.pe" data-tipo="num" type="number" inputmode="numeric"></label>
+          <label>PO <input data-campo="monedas.po" data-tipo="num" type="number" inputmode="numeric"></label>
+          <label>PPT <input data-campo="monedas.ppt" data-tipo="num" type="number" inputmode="numeric"></label>
+        </div>
+      </div>
+      <div class="caja">
+        <h2>Equipo</h2>
+        <textarea data-campo="equipo" rows="10"></textarea>
+      </div>
+      <div class="caja">
+        <h2>Sintonización con objetos mágicos</h2>
+        <div class="sintonia"><input type="checkbox" data-campo="sintonia.0.activo" aria-label="Sintonizado"><input data-campo="sintonia.0.nombre" autocomplete="off"></div>
+        <div class="sintonia"><input type="checkbox" data-campo="sintonia.1.activo" aria-label="Sintonizado"><input data-campo="sintonia.1.nombre" autocomplete="off"></div>
+        <div class="sintonia"><input type="checkbox" data-campo="sintonia.2.activo" aria-label="Sintonizado"><input data-campo="sintonia.2.nombre" autocomplete="off"></div>
+      </div>
+    </div>
+  </main>
+
+  <nav class="pestanas">
+    <button data-accion="pestana" data-p="ficha"><span>📜</span>Ficha</button>
+    <button data-accion="pestana" data-p="combate"><span>⚔️</span>Combate</button>
+    <button data-accion="pestana" data-p="atributos"><span>🎲</span>Atributos</button>
+    <button data-accion="pestana" data-p="rasgos"><span>⭐</span>Rasgos</button>
+    <button data-accion="pestana" data-p="magia"><span>✨</span>Magia</button>
+    <button data-accion="pestana" data-p="equipo"><span>🎒</span>Equipo</button>
+  </nav>
+</section>
+
+<!-- ============ DESCANSO CORTO ============ -->
+<dialog id="dlg-corto">
+  <form method="dialog">
+    <h2>Descanso corto</h2>
+    <p>Dados de golpe disponibles: <b data-calc="dgDisponibles"></b> (<span data-calc="dgDado"></span>, Constitución <span data-calc="modCon"></span>)</p>
+    <label class="campo ancho">Dados que gastas <input id="corto-dados" type="number" inputmode="numeric" min="0" value="0"></label>
+    <label class="campo ancho">PG que recuperas (tu tirada + Constitución por dado) <input id="corto-pg" type="number" inputmode="numeric" min="0" placeholder="0"></label>
+    <div class="botonera dos">
+      <button value="cancelar">Cancelar</button>
+      <button value="ok" class="primario">Descansar</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="aviso" role="status" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>
