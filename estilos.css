@@ -289,6 +289,33 @@ input.diminuto { width: 44px; padding: 2px; text-align: center; font-size: .85re
 .casillas { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 6px 0 10px; }
 .casillas label { display: flex; align-items: center; gap: 6px; }
 
+/* ===== Partida (jugador) ===== */
+.fila-codigo { display: flex; gap: 8px; }
+.fila-codigo input { text-transform: uppercase; letter-spacing: .08em; }
+.fila-codigo button { flex: none; }
+.partida-info { margin: 0 0 4px; }
+
+/* ===== Visor del DM ===== */
+.hueco-icono { min-width: 44px; }
+.codigo-partida { display: grid; justify-items: center; gap: 6px; text-align: center; }
+.codigo-grande { font-size: 2.2rem; letter-spacing: .15em; font-weight: 800; color: var(--acento); }
+.tarjeta-dm .abrir { align-items: flex-start; }
+.tarjeta-dm .texto { flex: 1; }
+.tarjeta-dm .pg-dm { font-weight: 700; color: var(--tinta); margin-top: 2px; }
+.tarjeta-dm .pg-barra { margin: 2px 0 4px; height: 6px; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.chip-dato { font-size: .75rem; color: var(--tinta); border: 1px solid var(--linea); border-radius: 999px; padding: 1px 8px; background: var(--campo); }
+.chip-dato.magia { border-color: var(--acento-claro); background: var(--acento-claro); }
+.tarjeta-dm .hora { font-size: .72rem; margin-top: 2px; }
+
+/* ===== Modo lectura (el DM mira una hoja) ===== */
+.solo-lectura { display: none !important; }
+.lectura .solo-lectura { display: block !important; }
+.lectura .solo-edicion { display: none !important; }
+.aviso-lectura { margin: 0; padding: 6px 12px; background: var(--acento-claro); color: var(--acento); font-size: .8rem; text-align: center; }
+.lectura :disabled { opacity: 1; cursor: default; }
+.lectura .contador button, .lectura .espacio .contador button { visibility: hidden; }
+
 /* ===== Diálogo y aviso ===== */
 dialog {
   border: 1px solid var(--borde); border-radius: 12px; padding: 16px;

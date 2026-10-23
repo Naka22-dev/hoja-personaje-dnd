@@ -1,7 +1,8 @@
 'use strict';
 
-const VERSION = '1.2';
+const VERSION = '1.3';
 const CLAVE = 'hojasDnD.v1';
+const CLAVE_DM = 'hojasDnD.partidasDM';
 
 // ===== Reglas =====
 const CARACTERISTICAS = [
@@ -66,6 +67,7 @@ function nuevoPersonaje() {
     imagen: null, aspecto: '', historia: '', alineamiento: '', idiomas: '', equipo: '',
     sintonia: Array.from({ length: 3 }, () => ({ activo: false, nombre: '' })),
     monedas: { pc: '', pp: '', pe: '', po: '', ppt: '' },
+    partida: '', partidaNombre: '',  // código y nombre de la partida a la que está unido
   };
 }
 const nuevaArma = () => ({ nombre: '', bonif: '', dano: '', notas: '' });
@@ -122,6 +124,7 @@ function escribir(obj, ruta, valor) {
 let personajes = cargar();
 let actual = null;
 let pestana = 'combate';
+let modoLectura = false;  // true cuando el DM mira la hoja de un jugador
 
 function cargar() {
   try {
@@ -134,7 +137,11 @@ function cargar() {
 
 let temporizador = null;
 function guardar() {
-  if (actual) actual.modificado = Date.now();
+  if (modoLectura) return;
+  if (actual) {
+    actual.modificado = Date.now();
+    if (actual.partida) programarEnvio(actual.id);
+  }
   clearTimeout(temporizador);
   temporizador = setTimeout(guardarYa, 300);
 }
@@ -236,6 +243,7 @@ function duplicar(id) {
   copia.id = crearId();
   copia.nombre = (original.nombre || 'Sin nombre') + ' (copia)';
   copia.modificado = Date.now();
+  copia.partida = copia.partidaNombre = '';
   personajes.push(copia);
   guardarYa();
   pintarLista();
@@ -244,6 +252,7 @@ function duplicar(id) {
 function borrar(id) {
   const p = personajes.find(x => x.id === id);
   if (!confirm(`¿Borrar a «${p.nombre || 'Sin nombre'}»? No se puede deshacer.\n(Si quieres conservarlo, expórtalo antes.)`)) return false;
+  if (p.partida) quitarPersonajeNube(p.partida, p.id).catch(() => {});
   personajes = personajes.filter(x => x.id !== id);
   guardarYa();
   pintarLista();
@@ -290,6 +299,7 @@ async function importar(archivo) {
   for (const bruto of lista) {
     if (!bruto || typeof bruto !== 'object') continue;
     const p = normalizar(bruto);
+    p.partida = p.partidaNombre = '';  // en otro móvil no podría seguir enviándola: hay que volver a unirse
     const i = personajes.findIndex(x => x.id === p.id);
     if (i >= 0) {
       if (confirm(`Ya tienes a «${personajes[i].nombre || 'Sin nombre'}».\n¿Reemplazarlo por el del archivo?\n(Cancelar = importarlo como copia)`)) {
@@ -537,9 +547,9 @@ function terminarGestoImagen(ev) {
 }
 
 // ===== Hoja: cálculos =====
-function valorHabilidad(id) {
+function valorHabilidad(id, p = actual) {
   const hb = HABILIDADES.find(x => x.id === id);
-  return modificador(actual.punt[hb.car]) + bonifCompetencia(actual.nivel) * (actual.hab[id] || 0);
+  return modificador(p.punt[hb.car]) + bonifCompetencia(p.nivel) * (p.hab[id] || 0);
 }
 
 function recalcular() {
@@ -583,49 +593,357 @@ function rellenar(raiz = $('#hoja')) {
   });
 }
 
-function pintarHoja() {
+function pintarHoja(mantenerScroll = false) {
   pintarArmas();
   pintarConjuros();
   pintarEspacios();
   editandoImagen = false;
   pintarRetrato();
+  pintarPartidaJugador();
   rellenar();
   recalcular();
-  mostrarPestana(pestana);
+  aplicarModoLectura();
+  mostrarPestana(pestana, mantenerScroll);
 }
 
-function mostrarPestana(nombre) {
+// En modo lectura se ve la hoja igual, pero no se puede tocar nada.
+function aplicarModoLectura() {
+  $('#vista-hoja').classList.toggle('lectura', modoLectura);
+  $('#hoja').querySelectorAll('input, textarea, select, button').forEach(e => {
+    if (e.matches('textarea, input:not([type=checkbox]):not([type=range]):not([type=file])')) e.readOnly = modoLectura;
+    else e.disabled = modoLectura;
+  });
+}
+
+function mostrarPestana(nombre, mantenerScroll = false) {
   pestana = nombre;
   $$('.panel').forEach(p => { p.hidden = p.dataset.panel !== nombre; });
   $$('.pestanas button').forEach(b => {
     if (b.dataset.p === nombre) b.setAttribute('aria-current', 'page');
     else b.removeAttribute('aria-current');
   });
-  window.scrollTo(0, 0);
+  if (!mantenerScroll) window.scrollTo(0, 0);
   // Las áreas de texto solo se pueden medir cuando están visibles.
   requestAnimationFrame(() => $$(`[data-panel=${nombre}] textarea`).forEach(autoajustar));
 }
 
 // ===== Navegación =====
-function abrir(id, pestanaInicial = 'combate') {
-  actual = personajes.find(p => p.id === id);
-  pestana = pestanaInicial;
-  pintarHoja();
-  $('#vista-lista').hidden = true;
-  $('#vista-hoja').hidden = false;
-  history.pushState({ hoja: id }, '', '#hoja');
+// Cada pantalla es una entrada del historial, para que el botón «atrás» del móvil funcione.
+// estado = { vista: 'lista' | 'hoja' | 'dm' | 'partida' | 'lectura', id?, codigo? }
+const PANTALLA = { lista: 'lista', hoja: 'hoja', lectura: 'hoja', dm: 'dm', partida: 'dm' };
+
+function irA(estado) {
+  history.pushState(estado, '', '#' + estado.vista);
+  mostrarEstado(estado);
 }
 
-function cerrar() {
-  guardarYa();
+function mostrarEstado(estado) {
+  if (actual && !modoLectura) guardarYa();
+  const { vista } = estado;
+  if (vista !== 'partida' && vista !== 'lectura') detenerEscucha();
   actual = null;
-  $('#vista-hoja').hidden = true;
-  $('#vista-lista').hidden = false;
-  pintarLista();
-  window.scrollTo(0, 0);
+  modoLectura = false;
+  if (vista === 'hoja') {
+    actual = personajes.find(p => p.id === estado.id);
+    if (!actual) return mostrarEstado({ vista: 'lista' });
+    pintarHoja();
+  } else if (vista === 'lectura') {
+    actual = escucha.codigo === estado.codigo ? escucha.personajes.get(estado.id) : null;
+    if (!actual) return mostrarEstado({ vista: 'partida', codigo: estado.codigo });
+    modoLectura = true;
+    pintarHoja();
+    pintarHoraLectura();
+  } else if (vista === 'partida') {
+    escucharPartida(estado.codigo);
+    pintarPartidaDM(estado.codigo);
+  } else if (vista === 'dm') {
+    pintarInicioDM();
+  } else {
+    pintarLista();
+  }
+  for (const nombre of ['lista', 'hoja', 'dm']) $('#vista-' + nombre).hidden = PANTALLA[vista] !== nombre;
+  if (PANTALLA[vista] !== 'hoja') window.scrollTo(0, 0);
 }
 
-window.addEventListener('popstate', () => { if (actual) cerrar(); });
+function abrir(id, pestanaInicial = 'combate') {
+  pestana = pestanaInicial;
+  irA({ vista: 'hoja', id });
+}
+
+window.addEventListener('popstate', ev => mostrarEstado(ev.state || { vista: 'lista' }));
+
+// ===== Partida (jugador) =====
+// Las hojas unidas a una partida se envían solas a la nube poco después de cada cambio.
+const temporizadoresEnvio = new Map();
+const estadoEnvio = new Map();  // id → { estado: 'enviando' | 'ok' | 'error', hora, mensaje }
+
+function programarEnvio(id) {
+  clearTimeout(temporizadoresEnvio.get(id));
+  temporizadoresEnvio.set(id, setTimeout(() => enviarAhora(id), 1500));
+}
+
+async function enviarAhora(id) {
+  temporizadoresEnvio.delete(id);
+  const p = personajes.find(x => x.id === id);
+  if (!p || !p.partida) return;
+  estadoEnvio.set(id, { estado: 'enviando' });
+  pintarPartidaJugador();
+  try {
+    await enviarPersonajeNube(p);
+    estadoEnvio.set(id, { estado: 'ok', hora: new Date() });
+  } catch (e) {
+    estadoEnvio.set(id, { estado: 'error', mensaje: mensajeErrorNube(e) });
+  }
+  pintarPartidaJugador();
+}
+
+const formatoHora = fecha => fecha.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+
+function pintarPartidaJugador() {
+  if (!actual || modoLectura) return;
+  const unido = !!actual.partida;
+  $('#partida-fuera').hidden = unido;
+  $('#partida-dentro').hidden = !unido;
+  if (!unido) return;
+  $('#partida-nombre').textContent = `«${actual.partidaNombre || 'Sin nombre'}»`;
+  $('#partida-codigo').textContent = mostrarCodigo(actual.partida);
+  const e = estadoEnvio.get(actual.id);
+  $('#partida-estado').textContent =
+    !e ? 'El DM ve esta hoja. Los cambios se le envían solos.'
+      : e.estado === 'ok' ? `✓ Enviada al DM a las ${formatoHora(e.hora)}`
+        : e.estado === 'enviando' ? (navigator.onLine ? 'Enviando…' : 'Sin conexión: se enviará al recuperar internet.')
+          : '⚠ ' + e.mensaje;
+}
+
+async function unirse() {
+  const p = actual;
+  const codigo = normalizarCodigo($('#codigo-unirse').value);
+  if (codigo.length !== 6) return aviso('El código tiene 6 letras o números, p. ej. ABC-123');
+  aviso('Buscando la partida…');
+  try {
+    const partida = await buscarPartidaNube(codigo);
+    if (!partida) return aviso('No hay ninguna partida con ese código');
+    p.partida = codigo;
+    p.partidaNombre = partida.nombre || '';
+    $('#codigo-unirse').value = '';
+    guardarYa();
+    pintarPartidaJugador();
+    aviso(`Te has unido a «${p.partidaNombre}»`);
+    enviarAhora(p.id);
+  } catch (e) {
+    aviso(mensajeErrorNube(e));
+  }
+}
+
+function salirPartida() {
+  const p = actual;
+  if (!confirm(`¿Salir de «${p.partidaNombre}»? El DM dejará de ver esta hoja.`)) return;
+  quitarPersonajeNube(p.partida, p.id).catch(() => {});
+  clearTimeout(temporizadoresEnvio.get(p.id));
+  estadoEnvio.delete(p.id);
+  p.partida = p.partidaNombre = '';
+  guardarYa();
+  pintarPartidaJugador();
+}
+
+// ===== Visor del DM =====
+function partidasDM() {
+  try {
+    return JSON.parse(localStorage.getItem(CLAVE_DM)) || [];
+  } catch {
+    return [];
+  }
+}
+function guardarPartidasDM(lista) {
+  localStorage.setItem(CLAVE_DM, JSON.stringify(lista));
+}
+function recordarPartida(codigo, nombre) {
+  guardarPartidasDM([{ codigo, nombre }, ...partidasDM().filter(x => x.codigo !== codigo)]);
+}
+
+function pintarInicioDM() {
+  $('#dm-titulo').textContent = 'Visor del DM';
+  $('#dm-subtitulo').textContent = '';
+  const lista = partidasDM();
+  $('#dm-contenido').replaceChildren(
+    h('p', { class: 'ayuda' }, 'Crea una partida y pasa el código a tus jugadores. Verás sus hojas en directo, solo para leer.'),
+    ...(lista.length
+      ? lista.map(pt => h('article', { class: 'tarjeta-pj' },
+        h('button', { class: 'abrir', 'data-accion': 'abrirPartida', 'data-codigo': pt.codigo },
+          h('div', { class: 'texto' },
+            h('strong', {}, pt.nombre || 'Sin nombre'),
+            h('span', {}, 'Código ' + mostrarCodigo(pt.codigo)))),
+        h('div', { class: 'acciones' },
+          h('button', { 'data-accion': 'olvidarPartida', 'data-codigo': pt.codigo }, 'Olvidar'))))
+      : [h('p', { class: 'vacio' }, 'Todavía no tienes partidas.')]),
+    h('div', { class: 'botonera' },
+      h('button', { class: 'primario', 'data-accion': 'crearPartida' }, '＋ Crear partida'),
+      h('button', { 'data-accion': 'abrirCodigo' }, 'Abrir partida con código')));
+}
+
+async function crearPartida() {
+  const nombre = prompt('Nombre de la partida (p. ej. «La mina perdida»):');
+  if (nombre === null) return;
+  aviso('Creando la partida…');
+  try {
+    const codigo = await crearPartidaNube(nombre.trim() || 'Partida');
+    recordarPartida(codigo, nombre.trim() || 'Partida');
+    irA({ vista: 'partida', codigo });
+  } catch (e) {
+    aviso(mensajeErrorNube(e));
+  }
+}
+
+function abrirPartidaConCodigo() {
+  const texto = prompt('Código de la partida:');
+  if (texto === null) return;
+  const codigo = normalizarCodigo(texto);
+  if (codigo.length !== 6) return aviso('El código tiene 6 letras o números, p. ej. ABC-123');
+  irA({ vista: 'partida', codigo });
+}
+
+// Partida que se está mirando: sus personajes llegan en directo desde la nube.
+const escucha = { codigo: null, cancelar: null, partida: null, esDM: false, cargando: false, error: '', personajes: new Map(), horas: new Map() };
+
+function detenerEscucha() {
+  if (escucha.cancelar) escucha.cancelar();
+  Object.assign(escucha, { codigo: null, cancelar: null, partida: null, esDM: false, cargando: false, error: '', personajes: new Map(), horas: new Map() });
+}
+
+async function escucharPartida(codigo) {
+  if (escucha.codigo === codigo) return;
+  detenerEscucha();
+  escucha.codigo = codigo;
+  escucha.cargando = true;
+  try {
+    const r = await escucharPartidaNube(codigo,
+      docs => recibirPersonajes(codigo, docs),
+      e => { if (escucha.codigo === codigo) { escucha.error = mensajeErrorNube(e); pintarPartidaDM(codigo); } });
+    if (escucha.codigo !== codigo) {
+      if (r) r.cancelar();
+      return;
+    }
+    if (r) {
+      Object.assign(escucha, { cancelar: r.cancelar, partida: r.partida, esDM: r.esDM });
+      recordarPartida(codigo, r.partida.nombre);
+    } else {
+      escucha.error = 'No hay ninguna partida con ese código.';
+    }
+  } catch (e) {
+    if (escucha.codigo !== codigo) return;
+    escucha.error = mensajeErrorNube(e);
+  }
+  escucha.cargando = false;
+  pintarPartidaDM(codigo);
+}
+
+function recibirPersonajes(codigo, docs) {
+  if (escucha.codigo !== codigo) return;
+  escucha.personajes = new Map();
+  escucha.horas = new Map();
+  for (const d of docs) {
+    try {
+      escucha.personajes.set(d.id, normalizar(JSON.parse(d.json)));
+      escucha.horas.set(d.id, d.actualizado);
+    } catch {
+      // hoja dañada: se ignora
+    }
+  }
+  const estado = history.state || {};
+  if (estado.vista === 'partida') pintarPartidaDM(codigo);
+  if (estado.vista === 'lectura' && modoLectura) {
+    if (escucha.personajes.has(estado.id)) {
+      actual = escucha.personajes.get(estado.id);
+      repintarLectura();
+    } else {
+      aviso(`«${actual.nombre || 'Sin nombre'}» ha salido de la partida`);
+      history.back();
+    }
+  }
+}
+
+// Vuelve a pintar la hoja que mira el DM sin perder la posición ni los desplegables abiertos.
+function repintarLectura() {
+  const abiertos = [...$$('#hoja details[open]')].map(d => d.dataset.lista + d.dataset.i);
+  pintarHoja(true);
+  $$('#hoja details').forEach(d => { if (abiertos.includes(d.dataset.lista + d.dataset.i)) d.open = true; });
+  pintarHoraLectura();
+}
+
+function pintarHoraLectura() {
+  const hora = escucha.horas.get(actual.id);
+  $('#lectura-hora').textContent = hora ? 'cambiada a las ' + formatoHora(hora) : '';
+}
+
+function pintarPartidaDM(codigo) {
+  const estado = history.state || {};
+  if (estado.vista !== 'partida' || estado.codigo !== codigo) return;
+  $('#dm-titulo').textContent = escucha.partida ? escucha.partida.nombre || 'Partida' : 'Partida';
+  $('#dm-subtitulo').textContent = 'Código ' + mostrarCodigo(codigo);
+  const cont = $('#dm-contenido');
+  if (escucha.error) return cont.replaceChildren(h('p', { class: 'vacio' }, escucha.error));
+  if (escucha.cargando && !escucha.personajes.size) return cont.replaceChildren(h('p', { class: 'vacio' }, 'Conectando…'));
+  const pjs = [...escucha.personajes.values()].sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es'));
+  cont.replaceChildren(
+    h('div', { class: 'caja codigo-partida' },
+      h('span', { class: 'etq' }, 'Código para los jugadores'),
+      h('strong', { class: 'codigo-grande' }, mostrarCodigo(codigo)),
+      h('button', { 'data-accion': 'compartirCodigo' }, 'Compartir código')),
+    ...(pjs.length
+      ? pjs.map(tarjetaDM)
+      : [h('p', { class: 'vacio' }, 'Todavía no se ha unido nadie. Los jugadores escriben el código en su hoja, en Ficha → Partida.')]));
+}
+
+function tarjetaDM(p) {
+  const max = num(p.pg.max);
+  const act = num(p.pg.act);
+  const temp = num(p.pg.temp);
+  const proporcion = max ? Math.max(0, Math.min(1, act / max)) : 0;
+  const datos = [
+    `CA ${p.ca || '–'}`,
+    `Iniciativa ${conSigno(modificador(p.punt.des) + num(p.iniciativaExtra))}`,
+    `Pasiva ${10 + valorHabilidad('percepcion', p)}`,
+    p.inspiracion && '✨ Inspiración',
+    max && act === 0 && `💀 Muerte: ${p.muerte.exitos} éxitos, ${p.muerte.fallos} fallos`,
+  ].filter(Boolean);
+  const espacios = p.magia.espacios
+    .map((e, i) => e.total && `Nv ${i + 1}: ${e.total - e.gastados}/${e.total}`)
+    .filter(Boolean);
+  const hora = escucha.horas.get(p.id);
+  return h('article', { class: 'tarjeta-pj tarjeta-dm' },
+    h('button', { class: 'abrir', 'data-accion': 'verPersonaje', 'data-id': p.id },
+      miniatura(p),
+      h('div', { class: 'texto' },
+        h('strong', {}, p.nombre || 'Sin nombre'),
+        h('span', {}, resumen(p)),
+        h('span', { class: 'pg-dm' }, `PG ${p.pg.act === '' ? '–' : act} / ${p.pg.max === '' ? '–' : max}` + (temp ? ` (+${temp} temp.)` : '')),
+        h('div', { class: 'pg-barra' },
+          h('span', { class: proporcion <= .25 ? 'bajo' : proporcion <= .5 ? 'medio' : '', style: `width: ${proporcion * 100}%` })),
+        h('div', { class: 'chips' }, datos.map(d => h('span', { class: 'chip-dato' }, d))),
+        espacios.length > 0 && h('div', { class: 'chips' }, espacios.map(d => h('span', { class: 'chip-dato magia' }, d))),
+        hora && h('span', { class: 'hora' }, 'Cambiada a las ' + formatoHora(hora)))),
+    escucha.esDM && h('div', { class: 'acciones' },
+      h('button', { 'data-accion': 'quitarDePartida', 'data-id': p.id }, 'Quitar')));
+}
+
+async function compartirCodigo() {
+  const nombre = escucha.partida ? escucha.partida.nombre : '';
+  const texto = `Únete a la partida «${nombre}» en la Hoja de personaje con el código ${mostrarCodigo(escucha.codigo)}\n${location.origin + location.pathname}`;
+  if (navigator.share) {
+    try {
+      await navigator.share({ text: texto });
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(texto);
+    aviso('Copiado: ya puedes pegarlo en el chat del grupo');
+  } catch {
+    aviso('Código: ' + mostrarCodigo(escucha.codigo));
+  }
+}
 
 // ===== Combate =====
 function cantidadIntroducida() {
@@ -773,9 +1091,32 @@ const acciones = {
     pintarConjuros();
     rellenar($('#lista-conjuros'));
   },
+  unirse,
+  salirPartida,
+  visorDM: () => irA({ vista: 'dm' }),
+  crearPartida,
+  abrirCodigo: abrirPartidaConCodigo,
+  abrirPartida: b => irA({ vista: 'partida', codigo: b.dataset.codigo }),
+  olvidarPartida: b => {
+    if (!confirm('¿Quitar esta partida de tu lista? (La partida sigue existiendo: puedes volver a abrirla con su código.)')) return;
+    guardarPartidasDM(partidasDM().filter(x => x.codigo !== b.dataset.codigo));
+    pintarInicioDM();
+  },
+  compartirCodigo,
+  verPersonaje: b => {
+    pestana = 'combate';
+    irA({ vista: 'lectura', codigo: escucha.codigo, id: b.dataset.id });
+  },
+  quitarDePartida: b => {
+    const p = escucha.personajes.get(b.dataset.id);
+    if (!confirm(`¿Quitar a «${p.nombre || 'Sin nombre'}» de la partida?\nSu hoja no se borra del móvil del jugador. Sirve para hojas antiguas o repetidas: si el jugador sigue unido, volverá a aparecer cuando cambie algo.`)) return;
+    quitarPersonajeNube(escucha.codigo, b.dataset.id).catch(e => aviso(mensajeErrorNube(e)));
+  },
 };
 // Acciones que no modifican el personaje (no hace falta guardar ni recalcular).
-const SIN_CAMBIOS = new Set(['nuevo', 'importar', 'exportarTodos', 'volver', 'exportar', 'borrarActual', 'pestana', 'corto', 'largo', 'subirImagen', 'encuadrar']);
+const SIN_CAMBIOS = new Set(['nuevo', 'importar', 'exportarTodos', 'volver', 'exportar', 'borrarActual', 'pestana', 'corto', 'largo',
+  'subirImagen', 'encuadrar', 'unirse', 'salirPartida', 'visorDM', 'crearPartida', 'abrirCodigo', 'abrirPartida', 'olvidarPartida',
+  'compartirCodigo', 'verPersonaje', 'quitarDePartida']);
 
 document.addEventListener('click', ev => {
   const b = ev.target.closest('[data-accion]');
@@ -816,6 +1157,12 @@ $('#archivo-importar').addEventListener('change', ev => {
 
 $('#dlg-corto form').addEventListener('submit', terminarDescansoCorto);
 
+$('#codigo-unirse').addEventListener('keydown', ev => { if (ev.key === 'Enter') unirse(); });
+// Al volver la conexión, reintenta las hojas que no se pudieron enviar.
+window.addEventListener('online', () => {
+  for (const p of personajes) if (p.partida && (estadoEnvio.get(p.id) || {}).estado !== 'ok') programarEnvio(p.id);
+});
+
 $('#archivo-imagen').addEventListener('change', ev => {
   const archivo = ev.target.files[0];
   ev.target.value = '';
@@ -844,6 +1191,8 @@ $('#version').textContent = VERSION;
 construirCaracteristicas();
 if (location.hash) history.replaceState(null, '', location.pathname + location.search);
 pintarLista();
+// Reenvía las hojas unidas a una partida, por si quedó algún cambio sin enviar al cerrar la app.
+for (const p of personajes) if (p.partida) programarEnvio(p.id);
 
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {

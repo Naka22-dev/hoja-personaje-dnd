@@ -1,11 +1,12 @@
 // Guarda la app en el móvil para que funcione sin conexión.
 // Sirve siempre la copia guardada y, en segundo plano, descarga la versión nueva
 // (las actualizaciones se ven la siguiente vez que se abre la app).
-const CACHE = 'hoja-pj-v3';
+const CACHE = 'hoja-pj-v4';
 const ARCHIVOS = [
   './',
   'index.html',
   'estilos.css',
+  'nube.js',
   'app.js',
   'manifest.webmanifest',
   'iconos/icono.svg',
@@ -28,7 +29,18 @@ self.addEventListener('activate', ev => {
 
 self.addEventListener('fetch', ev => {
   const req = ev.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  // Las librerías de Firebase no cambian dentro de una versión: se guardan la primera vez que se usan.
+  if (url.origin === 'https://www.gstatic.com' && url.pathname.startsWith('/firebasejs/')) {
+    ev.respondWith(caches.open(CACHE).then(async cache =>
+      (await cache.match(req)) || fetch(req).then(resp => {
+        if (resp.ok) cache.put(req, resp.clone());
+        return resp;
+      })));
+    return;
+  }
+  if (url.origin !== location.origin) return;
   ev.respondWith(caches.open(CACHE).then(async cache => {
     const guardada = await cache.match(req, { ignoreSearch: true });
     // no-cache: pregunta siempre al servidor si hay versión nueva (GitHub Pages pide guardar 10 min).

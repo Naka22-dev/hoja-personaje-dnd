@@ -9,7 +9,9 @@ Funciona sin internet una vez abierta y guarda los datos solo en ese dispositivo
 |---|---|
 | `index.html` | Estructura de las pantallas |
 | `estilos.css` | Aspecto (modo claro y oscuro automático) |
-| `app.js` | Lógica: guardado, cálculos, descansos, importar/exportar |
+| `app.js` | Lógica: guardado, cálculos, descansos, importar/exportar, partidas y visor del DM |
+| `nube.js` | Conexión con Firebase (solo para partidas) |
+| `firestore.rules` | Reglas de seguridad que hay que pegar en Firebase (no las usa la web) |
 | `sw.js` | Hace que funcione sin conexión |
 | `manifest.webmanifest`, `iconos/` | Datos para instalarla en la pantalla de inicio |
 
@@ -29,6 +31,17 @@ En **Ficha → Aspecto** se puede subir una imagen, escribir una descripción o 
 El recuadro tiene tamaño fijo (3:4). Con **Encuadrar** se arrastra la imagen y se acerca o aleja
 (barra de zoom, pellizco con dos dedos o rueda del ratón). La misma imagen sale en la lista de personajes.
 Al subirla se reduce (lado mayor 1000 px, JPEG) para no llenar el almacenamiento del móvil; va incluida al exportar.
+
+## Partidas y visor del DM
+
+- **DM:** en la lista, **Visor del DM → Crear partida**. La app da un código de 6 caracteres (p. ej. `ABC-234`).
+  Se ven las hojas de los jugadores en directo, solo para leer. Tocando una tarjeta se abre la hoja completa.
+- **Jugador:** en su hoja, **Ficha → Partida**, escribe el código y pulsa **Unirse**. Cada cambio se envía solo
+  (sin conexión, se envía al recuperarla). **Salir de la partida** deja de compartirla.
+- Solo las hojas unidas a una partida se guardan en la nube; el resto sigue solo en el móvil.
+- Firebase (proyecto `hoja-personaje-dnd`, plan gratuito): Firestore + inicio de sesión anónimo.
+  Las reglas de `firestore.rules` impiden que nadie salvo el propio jugador cambie su hoja.
+- Si un jugador cambia de móvil o borra los datos del navegador, tiene que volver a unirse; el DM puede quitar la tarjeta antigua.
 
 ## Probarla en el ordenador
 

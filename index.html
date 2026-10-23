@@ -27,10 +27,24 @@
       <button class="primario" data-accion="nuevo">＋ Nuevo personaje</button>
       <button data-accion="importar">Importar archivo</button>
       <button data-accion="exportarTodos">Copia de seguridad</button>
+      <button data-accion="visorDM">🛡️ Visor del DM</button>
     </div>
     <input type="file" id="archivo-importar" accept=".json,application/json" hidden>
     <p class="pie">Las hojas se guardan solo en este dispositivo. Haz una copia de seguridad de vez en cuando. · v<span id="version"></span></p>
   </main>
+</section>
+
+<!-- ============ VISOR DEL DM ============ -->
+<section id="vista-dm" class="vista" hidden>
+  <header class="barra">
+    <button class="icono" data-accion="volver" aria-label="Volver">‹</button>
+    <div class="titulo">
+      <h1 id="dm-titulo">Visor del DM</h1>
+      <p id="dm-subtitulo"></p>
+    </div>
+    <span class="hueco-icono"></span>
+  </header>
+  <main class="contenido" id="dm-contenido"></main>
 </section>
 
 <!-- ============ HOJA DE PERSONAJE ============ -->
@@ -41,8 +55,10 @@
       <h1 data-calc="titulo"></h1>
       <p data-calc="subtitulo"></p>
     </div>
-    <button class="icono" data-accion="exportar" aria-label="Exportar este personaje" title="Exportar">⇩</button>
+    <button class="icono solo-edicion" data-accion="exportar" aria-label="Exportar este personaje" title="Exportar">⇩</button>
+    <span class="hueco-icono solo-lectura"></span>
   </header>
+  <p class="aviso-lectura solo-lectura">👁️ Solo lectura · se actualiza en directo · <span id="lectura-hora"></span></p>
 
   <main class="contenido" id="hoja">
 
@@ -59,6 +75,21 @@
           <label class="campo">PX <input data-campo="px" inputmode="numeric" autocomplete="off"></label>
         </div>
       </div>
+      <div class="caja solo-edicion">
+        <h2>Partida</h2>
+        <div id="partida-fuera">
+          <p class="ayuda">Únete a la partida de tu DM para que pueda ver esta hoja en directo. El DM solo la ve: nadie más puede cambiarla.</p>
+          <div class="fila-codigo">
+            <input id="codigo-unirse" placeholder="Código, p. ej. ABC-123" autocomplete="off" autocapitalize="characters" spellcheck="false">
+            <button class="primario" data-accion="unirse">Unirse</button>
+          </div>
+        </div>
+        <div id="partida-dentro" hidden>
+          <p class="partida-info">En la partida <b id="partida-nombre"></b> · <span id="partida-codigo"></span></p>
+          <p class="ayuda" id="partida-estado"></p>
+          <button class="peligro ancho" data-accion="salirPartida">Salir de la partida</button>
+        </div>
+      </div>
       <div class="caja">
         <h2>Aspecto</h2>
         <div class="retrato-zona">
@@ -66,7 +97,7 @@
             <img id="retrato-img" alt="Imagen del personaje" draggable="false" hidden>
             <span class="retrato-vacio" id="retrato-vacio">Sin imagen</span>
           </div>
-          <div class="retrato-botones">
+          <div class="retrato-botones solo-edicion">
             <button data-accion="subirImagen" id="btn-subir">Subir imagen</button>
             <button data-accion="encuadrar" id="btn-encuadrar" hidden>Encuadrar</button>
             <button class="peligro" data-accion="quitarImagen" id="btn-quitar" hidden>Quitar imagen</button>
@@ -92,7 +123,7 @@
         <h2>Idiomas</h2>
         <textarea data-campo="idiomas" rows="2"></textarea>
       </div>
-      <button class="peligro ancho" data-accion="borrarActual">Borrar este personaje</button>
+      <button class="peligro ancho solo-edicion" data-accion="borrarActual">Borrar este personaje</button>
     </div>
 
     <!-- ===== COMBATE ===== -->
@@ -109,7 +140,7 @@
           <label class="pg-temp">Temp. <input data-campo="pg.temp" data-tipo="num" type="number" inputmode="numeric"></label>
         </div>
         <div class="pg-barra"><span data-estado="pgBarra"></span></div>
-        <div class="pg-acciones">
+        <div class="pg-acciones solo-edicion">
           <button class="peligro" data-accion="dano">− Daño</button>
           <input id="cantidad" type="number" inputmode="numeric" min="0" placeholder="0" aria-label="Cantidad">
           <button class="exito" data-accion="curar">+ Curar</button>
@@ -168,7 +199,7 @@
         </div>
       </div>
 
-      <div class="botonera dos">
+      <div class="botonera dos solo-edicion">
         <button data-accion="corto">Descanso corto</button>
         <button data-accion="largo">Descanso largo</button>
       </div>
@@ -176,13 +207,13 @@
       <div class="caja">
         <h2>Armas y trucos de daño</h2>
         <div id="lista-armas" class="lista"></div>
-        <button class="ancho" data-accion="nuevaArma">＋ Añadir arma o truco</button>
+        <button class="ancho solo-edicion" data-accion="nuevaArma">＋ Añadir arma o truco</button>
       </div>
     </div>
 
     <!-- ===== CARACTERÍSTICAS ===== -->
     <div class="panel" data-panel="atributos" hidden>
-      <p class="ayuda">Toca el círculo para marcar competencia (●) o pericia (◉).</p>
+      <p class="ayuda solo-edicion">Toca el círculo para marcar competencia (●) o pericia (◉).</p>
       <div id="lista-caracteristicas"></div>
     </div>
 
@@ -233,13 +264,13 @@
       </div>
       <div class="caja">
         <h2>Espacios de conjuro</h2>
-        <p class="ayuda">Ajusta el total con − / + y toca los rombos para marcar los gastados.</p>
+        <p class="ayuda solo-edicion">Ajusta el total con − / + y toca los rombos para marcar los gastados.</p>
         <div id="lista-espacios"></div>
       </div>
       <div class="caja">
         <h2>Trucos y conjuros preparados</h2>
         <div id="lista-conjuros" class="lista"></div>
-        <div class="botonera dos">
+        <div class="botonera dos solo-edicion">
           <button data-accion="nuevoConjuro">＋ Añadir conjuro</button>
           <button data-accion="ordenarConjuros">Ordenar por nivel</button>
         </div>
@@ -297,6 +328,7 @@
 
 <div id="aviso" role="status" hidden></div>
 
+<script src="nube.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
