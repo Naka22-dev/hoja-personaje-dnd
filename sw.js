@@ -1,7 +1,7 @@
 // Guarda la app en el móvil para que funcione sin conexión.
 // Sirve siempre la copia guardada y, en segundo plano, descarga la versión nueva
 // (las actualizaciones se ven la siguiente vez que se abre la app).
-const CACHE = 'hoja-pj-v1';
+const CACHE = 'hoja-pj-v2';
 const ARCHIVOS = [
   './',
   'index.html',
@@ -29,7 +29,8 @@ self.addEventListener('fetch', ev => {
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
   ev.respondWith(caches.open(CACHE).then(async cache => {
     const guardada = await cache.match(req, { ignoreSearch: true });
-    const nueva = fetch(req).then(resp => {
+    // no-cache: pregunta siempre al servidor si hay versión nueva (GitHub Pages pide guardar 10 min).
+    const nueva = fetch(req.url, { cache: 'no-cache' }).then(resp => {
       if (resp.ok) cache.put(req, resp.clone());
       return resp;
     }).catch(() => null);
