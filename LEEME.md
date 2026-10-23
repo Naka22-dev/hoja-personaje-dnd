@@ -23,6 +23,13 @@ Funciona sin internet una vez abierta y guarda los datos solo en ese dispositivo
 - Daño: se resta primero de los PG temporales. Curar desde 0 PG reinicia las salvaciones contra muerte.
 - Descanso corto: apunta los dados de golpe gastados y los PG recuperados (los dados se tiran en físico). Descanso largo: PG al máximo, dados de golpe y espacios de conjuro recuperados.
 
+## Imagen del personaje
+
+En **Ficha → Aspecto** se puede subir una imagen, escribir una descripción o las dos cosas.
+El recuadro tiene tamaño fijo (3:4). Con **Encuadrar** se arrastra la imagen y se acerca o aleja
+(barra de zoom, pellizco con dos dedos o rueda del ratón). La misma imagen sale en la lista de personajes.
+Al subirla se reduce (lado mayor 1000 px, JPEG) para no llenar el almacenamiento del móvil; va incluida al exportar.
+
 ## Probarla en el ordenador
 
 Abrir `index.html` con doble clic ya funciona (sin modo sin conexión). Para probarla completa:

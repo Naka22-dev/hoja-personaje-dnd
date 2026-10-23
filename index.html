@@ -61,7 +61,27 @@
       </div>
       <div class="caja">
         <h2>Aspecto</h2>
-        <textarea data-campo="aspecto" rows="3"></textarea>
+        <div class="retrato-zona">
+          <div class="retrato" id="retrato">
+            <img id="retrato-img" alt="Imagen del personaje" draggable="false" hidden>
+            <span class="retrato-vacio" id="retrato-vacio">Sin imagen</span>
+          </div>
+          <div class="retrato-botones">
+            <button data-accion="subirImagen" id="btn-subir">Subir imagen</button>
+            <button data-accion="encuadrar" id="btn-encuadrar" hidden>Encuadrar</button>
+            <button class="peligro" data-accion="quitarImagen" id="btn-quitar" hidden>Quitar imagen</button>
+          </div>
+          <div class="retrato-edicion" id="retrato-edicion" hidden>
+            <p class="ayuda">Arrastra la imagen para moverla. Acércala o aléjala con la barra o pellizcando con dos dedos.</p>
+            <label class="campo ancho">Zoom <input type="range" id="retrato-zoom" min="1" max="4" step="0.01"></label>
+            <div class="botonera dos">
+              <button data-accion="centrarImagen">Centrar</button>
+              <button class="primario" data-accion="encuadrar">Listo</button>
+            </div>
+          </div>
+        </div>
+        <input type="file" id="archivo-imagen" accept="image/*" hidden>
+        <label class="campo ancho">Descripción <textarea data-campo="aspecto" rows="3" placeholder="Opcional si has subido una imagen"></textarea></label>
       </div>
       <div class="caja">
         <h2>Historia y personalidad</h2>

@@ -1,6 +1,6 @@
 'use strict';
 
-const VERSION = '1.1';
+const VERSION = '1.2';
 const CLAVE = 'hojasDnD.v1';
 
 // ===== Reglas =====
@@ -63,7 +63,7 @@ function nuevoPersonaje() {
     rasgosClase: '', atributosEspecie: '', dotes: '',
     magia: { aptitud: '', espacios: Array.from({ length: 9 }, () => ({ total: 0, gastados: 0 })) },
     conjuros: [],
-    aspecto: '', historia: '', alineamiento: '', idiomas: '', equipo: '',
+    imagen: null, aspecto: '', historia: '', alineamiento: '', idiomas: '', equipo: '',
     sintonia: Array.from({ length: 3 }, () => ({ activo: false, nombre: '' })),
     monedas: { pc: '', pp: '', pe: '', po: '', ppt: '' },
   };
@@ -92,8 +92,23 @@ function normalizar(datos) {
   const p = fusionar(nuevoPersonaje(), datos);
   p.armas = p.armas.filter(a => a && typeof a === 'object').map(a => fusionar(nuevaArma(), a));
   p.conjuros = p.conjuros.filter(c => c && typeof c === 'object').map(c => fusionar(nuevoConjuro(), c));
+  p.imagen = imagenValida(datos && datos.imagen);
   if (!p.id) p.id = crearId();
   return p;
+}
+
+// imagen = { src (JPEG en base64), ancho, alto (píxeles), zoom (1-4), x, y (0-1: qué parte queda a la vista) }
+function imagenValida(im) {
+  if (!im || typeof im.src !== 'string' || !im.src.startsWith('data:image/')) return null;
+  const rango = (v, def, min, max) => (Number.isFinite(Number(v)) && v !== null ? Math.min(max, Math.max(min, Number(v))) : def);
+  return {
+    src: im.src,
+    ancho: rango(im.ancho, 1, 1, 100000),
+    alto: rango(im.alto, 1, 1, 100000),
+    zoom: rango(im.zoom, 1, 1, 4),
+    x: rango(im.x, .5, 0, 1),
+    y: rango(im.y, .5, 0, 1),
+  };
 }
 
 const leer = (obj, ruta) => ruta.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
@@ -128,7 +143,9 @@ function guardarYa() {
   try {
     localStorage.setItem(CLAVE, JSON.stringify(personajes));
   } catch (e) {
-    aviso('No se ha podido guardar: ' + e.message);
+    aviso(e.name === 'QuotaExceededError'
+      ? 'No queda espacio para guardar. Quita alguna imagen o borra personajes que no uses.'
+      : 'No se ha podido guardar: ' + e.message);
   }
 }
 window.addEventListener('pagehide', guardarYa);
@@ -181,14 +198,28 @@ function pintarLista() {
   [...personajes].sort((a, b) => b.modificado - a.modificado).forEach(p => {
     cont.append(h('article', { class: 'tarjeta-pj' },
       h('button', { class: 'abrir', onclick: () => abrir(p.id) },
-        h('strong', {}, p.nombre || 'Sin nombre'),
-        h('span', {}, resumen(p)),
-        h('span', {}, `PG ${p.pg.act === '' ? '–' : p.pg.act} / ${p.pg.max === '' ? '–' : p.pg.max}`)),
+        miniatura(p),
+        h('div', { class: 'texto' },
+          h('strong', {}, p.nombre || 'Sin nombre'),
+          h('span', {}, resumen(p)),
+          h('span', {}, `PG ${p.pg.act === '' ? '–' : p.pg.act} / ${p.pg.max === '' ? '–' : p.pg.max}`))),
       h('div', { class: 'acciones' },
         h('button', { onclick: () => duplicar(p.id) }, 'Duplicar'),
         h('button', { onclick: () => exportar([p], nombreArchivo(p.nombre)) }, 'Exportar'),
         h('button', { onclick: () => borrar(p.id) }, 'Borrar'))));
   });
+}
+
+function miniatura(p) {
+  const caja = h('div', { class: 'miniatura' });
+  if (p.imagen) {
+    const img = h('img', { src: p.imagen.src, alt: '' });
+    colocarImagen(img, p.imagen, 54, 72);
+    caja.append(img);
+  } else {
+    caja.textContent = (p.nombre || '?').trim().charAt(0).toUpperCase() || '?';
+  }
+  return caja;
 }
 
 function crear() {
@@ -390,6 +421,121 @@ function pintarEstados() {
   barra.className = proporcion <= .25 ? 'bajo' : proporcion <= .5 ? 'medio' : '';
 }
 
+// ===== Imagen del personaje =====
+const RETRATO = { ancho: 180, alto: 240 };  // igual que .retrato en estilos.css
+const ZOOM_MAX = 4;
+let editandoImagen = false;
+
+// La imagen siempre cubre todo el recuadro; zoom la agranda y x/y eligen qué parte se ve.
+function medidasImagen(imagen, ancho, alto) {
+  const escala = Math.max(ancho / imagen.ancho, alto / imagen.alto) * imagen.zoom;
+  return { w: imagen.ancho * escala, h: imagen.alto * escala };
+}
+
+function colocarImagen(img, imagen, ancho, alto) {
+  const m = medidasImagen(imagen, ancho, alto);
+  img.style.width = m.w + 'px';
+  img.style.height = m.h + 'px';
+  img.style.left = (ancho - m.w) * imagen.x + 'px';
+  img.style.top = (alto - m.h) * imagen.y + 'px';
+}
+
+function pintarRetrato() {
+  const im = actual.imagen;
+  if (!im) editandoImagen = false;
+  const img = $('#retrato-img');
+  img.hidden = !im;
+  $('#retrato-vacio').hidden = !!im;
+  $('#btn-subir').textContent = im ? 'Cambiar imagen' : 'Subir imagen';
+  $('#btn-encuadrar').hidden = !im || editandoImagen;
+  $('#btn-quitar').hidden = !im;
+  $('#retrato-edicion').hidden = !editandoImagen;
+  $('#retrato').classList.toggle('editando', editandoImagen);
+  if (im) {
+    if (img.getAttribute('src') !== im.src) img.src = im.src;
+    colocarImagen(img, im, RETRATO.ancho, RETRATO.alto);
+    $('#retrato-zoom').value = im.zoom;
+  } else {
+    img.removeAttribute('src');
+  }
+}
+
+function leerArchivoImagen(archivo) {
+  return new Promise((ok, mal) => {
+    const url = URL.createObjectURL(archivo);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); ok(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); mal(new Error('imagen no válida')); };
+    img.src = url;
+  });
+}
+
+// Reduce la imagen (lado mayor 1000 px, JPEG) para que quepa en el almacenamiento del móvil.
+async function cargarImagen(archivo) {
+  let img;
+  try {
+    img = await leerArchivoImagen(archivo);
+  } catch {
+    aviso('No se ha podido abrir la imagen');
+    return;
+  }
+  const factor = Math.min(1, 1000 / Math.max(img.naturalWidth, img.naturalHeight));
+  const ancho = Math.round(img.naturalWidth * factor);
+  const alto = Math.round(img.naturalHeight * factor);
+  const lienzo = h('canvas', { width: ancho, height: alto });
+  const ctx = lienzo.getContext('2d');
+  ctx.fillStyle = '#ffffff';  // el JPEG no admite transparencia
+  ctx.fillRect(0, 0, ancho, alto);
+  ctx.drawImage(img, 0, 0, ancho, alto);
+  actual.imagen = { src: lienzo.toDataURL('image/jpeg', .85), ancho, alto, zoom: 1, x: .5, y: .5 };
+  editandoImagen = true;
+  guardar();
+  pintarRetrato();
+}
+
+function moverImagen(dx, dy) {
+  const im = actual.imagen;
+  const m = medidasImagen(im, RETRATO.ancho, RETRATO.alto);
+  const sobraX = m.w - RETRATO.ancho;
+  const sobraY = m.h - RETRATO.alto;
+  if (sobraX > 0) im.x = Math.min(1, Math.max(0, im.x - dx / sobraX));
+  if (sobraY > 0) im.y = Math.min(1, Math.max(0, im.y - dy / sobraY));
+}
+
+function zoomImagen(zoom) {
+  actual.imagen.zoom = Math.min(ZOOM_MAX, Math.max(1, zoom));
+}
+
+// Arrastrar con un dedo (o el ratón) y pellizcar con dos.
+const punteros = new Map();
+const distancia = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+
+function iniciarGestoImagen(ev) {
+  if (!editandoImagen || !actual.imagen) return;
+  ev.preventDefault();
+  $('#retrato').setPointerCapture(ev.pointerId);
+  punteros.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+}
+
+function moverGestoImagen(ev) {
+  const antes = punteros.get(ev.pointerId);
+  if (!antes) return;
+  const ahora = { x: ev.clientX, y: ev.clientY };
+  if (punteros.size === 1) {
+    moverImagen(ahora.x - antes.x, ahora.y - antes.y);
+  } else {
+    const otro = [...punteros].find(([id]) => id !== ev.pointerId)[1];
+    const d = distancia(antes, otro);
+    if (d > 0) zoomImagen(actual.imagen.zoom * distancia(ahora, otro) / d);
+  }
+  punteros.set(ev.pointerId, ahora);
+  pintarRetrato();
+}
+
+function terminarGestoImagen(ev) {
+  if (punteros.delete(ev.pointerId)) guardar();
+}
+
 // ===== Hoja: cálculos =====
 function valorHabilidad(id) {
   const hb = HABILIDADES.find(x => x.id === id);
@@ -441,6 +587,8 @@ function pintarHoja() {
   pintarArmas();
   pintarConjuros();
   pintarEspacios();
+  editandoImagen = false;
+  pintarRetrato();
   rellenar();
   recalcular();
   mostrarPestana(pestana);
@@ -606,6 +754,20 @@ const acciones = {
     pintarConjuros();
     rellenar($('#lista-conjuros'));
   },
+  subirImagen: () => $('#archivo-imagen').click(),
+  encuadrar: () => {
+    editandoImagen = !editandoImagen;
+    pintarRetrato();
+  },
+  centrarImagen: () => {
+    Object.assign(actual.imagen, { zoom: 1, x: .5, y: .5 });
+    pintarRetrato();
+  },
+  quitarImagen: () => {
+    if (!confirm('¿Quitar la imagen del personaje?')) return;
+    actual.imagen = null;
+    pintarRetrato();
+  },
   ordenarConjuros: () => {
     actual.conjuros.sort((a, b) => num(a.nivel) - num(b.nivel) || a.nombre.localeCompare(b.nombre, 'es'));
     pintarConjuros();
@@ -613,7 +775,7 @@ const acciones = {
   },
 };
 // Acciones que no modifican el personaje (no hace falta guardar ni recalcular).
-const SIN_CAMBIOS = new Set(['nuevo', 'importar', 'exportarTodos', 'volver', 'exportar', 'borrarActual', 'pestana', 'corto', 'largo']);
+const SIN_CAMBIOS = new Set(['nuevo', 'importar', 'exportarTodos', 'volver', 'exportar', 'borrarActual', 'pestana', 'corto', 'largo', 'subirImagen', 'encuadrar']);
 
 document.addEventListener('click', ev => {
   const b = ev.target.closest('[data-accion]');
@@ -653,6 +815,29 @@ $('#archivo-importar').addEventListener('change', ev => {
 });
 
 $('#dlg-corto form').addEventListener('submit', terminarDescansoCorto);
+
+$('#archivo-imagen').addEventListener('change', ev => {
+  const archivo = ev.target.files[0];
+  ev.target.value = '';
+  if (archivo) cargarImagen(archivo);
+});
+$('#retrato-zoom').addEventListener('input', ev => {
+  zoomImagen(Number(ev.target.value));
+  pintarRetrato();
+  guardar();
+});
+const retrato = $('#retrato');
+retrato.addEventListener('pointerdown', iniciarGestoImagen);
+retrato.addEventListener('pointermove', moverGestoImagen);
+retrato.addEventListener('pointerup', terminarGestoImagen);
+retrato.addEventListener('pointercancel', terminarGestoImagen);
+retrato.addEventListener('wheel', ev => {
+  if (!editandoImagen || !actual.imagen) return;
+  ev.preventDefault();
+  zoomImagen(actual.imagen.zoom * (1 - ev.deltaY * .002));
+  pintarRetrato();
+  guardar();
+}, { passive: false });
 
 // ===== Inicio =====
 $('#version').textContent = VERSION;
