@@ -784,10 +784,11 @@ function pintarInicioDM() {
 async function crearPartida() {
   const nombre = prompt('Nombre de la partida (p. ej. «La mina perdida»):');
   if (nombre === null) return;
+  const limpio = nombre.trim().slice(0, 100) || 'Partida';  // las reglas de Firestore no admiten más de 100
   aviso('Creando la partida…');
   try {
-    const codigo = await crearPartidaNube(nombre.trim() || 'Partida');
-    recordarPartida(codigo, nombre.trim() || 'Partida');
+    const codigo = await crearPartidaNube(limpio);
+    recordarPartida(codigo, limpio);
     irA({ vista: 'partida', codigo });
   } catch (e) {
     aviso(mensajeErrorNube(e));
