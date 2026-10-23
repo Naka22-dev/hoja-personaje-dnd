@@ -1,7 +1,7 @@
 // Guarda la app en el móvil para que funcione sin conexión.
 // Sirve siempre la copia guardada y, en segundo plano, descarga la versión nueva
 // (las actualizaciones se ven la siguiente vez que se abre la app).
-const CACHE = 'hoja-pj-v2';
+const CACHE = 'hoja-pj-v3';
 const ARCHIVOS = [
   './',
   'index.html',
@@ -15,7 +15,9 @@ const ARCHIVOS = [
 ];
 
 self.addEventListener('install', ev => {
-  ev.waitUntil(caches.open(CACHE).then(c => c.addAll(ARCHIVOS)).then(() => self.skipWaiting()));
+  // reload: descarga del servidor, no de la caché del navegador (podría ser la versión anterior).
+  const peticiones = ARCHIVOS.map(u => new Request(u, { cache: 'reload' }));
+  ev.waitUntil(caches.open(CACHE).then(c => c.addAll(peticiones)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', ev => {
